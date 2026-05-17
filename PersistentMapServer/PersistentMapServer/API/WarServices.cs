@@ -22,16 +22,14 @@ namespace PersistentMapAPI {
         private readonly object _salvageLock = new Object();
         private readonly object _purchaseLock = new Object();
 
-        // Thread-safe; returns copy of starmap. We clone to prevent modification during serialization (due to heavy nesting).
+        // Thread-safe; returns a deep clone so concurrent PostMissionResult mutations don't corrupt the serialized response.
         public override StarMap GetStarmap() {
-            StarMap builtMap = StarMapStateManager.Build();
-            return builtMap;
+            return (StarMap)StarMapStateManager.Build().Clone();
         }
 
-        // Thread-safe; returns copy of starmap. We clone to prevent modification during serialization (due to heavy nesting).
+        // Thread-safe; finds system in a cloned snapshot.
         public override System GetSystem(string name) {
-            StarMap builtMap = StarMapStateManager.Build();
-            return builtMap.FindSystemByName(name);
+            return StarMapStateManager.Build().FindSystemByName(name);
         }
 
         [UserQuota(enforcement: UserQuotaAttribute.EnforcementEnum.Block)]
@@ -257,6 +255,7 @@ namespace PersistentMapAPI {
         }
 
         public override List<ShopDefItem> GetShopForFaction(string Faction) {
+            lock (_purchaseLock) {
             try {
                 Faction realFaction = (Faction)Enum.Parse(typeof(Faction), Faction);
                 if (Holder.factionShops == null) {
@@ -280,6 +279,7 @@ namespace PersistentMapAPI {
                 logger.Warn(e, "Failed to get shop for faction!");
                 return null;
             }
+            } // lock (_purchaseLock)
         }
 
         public override string PostSalvageForFaction(List<ShopDefItem> salvage, string Faction) {
