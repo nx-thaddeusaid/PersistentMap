@@ -242,4 +242,4 @@ ModelManifest.xml
 .fake/
 
 # Unit-test driven generated settings
-generatedSettings.json
+generatedSettings.jsontests/__pycache__/
