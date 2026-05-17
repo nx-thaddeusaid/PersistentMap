@@ -28,8 +28,7 @@ namespace PersistentMapAPI {
             if (controlList == null) {
                 controlList = new List<FactionControl>();
             }
-            FactionControl result = controlList.OrderByDescending(x => x.percentage).First();
-            return result;
+            return controlList.OrderByDescending(x => x.percentage).FirstOrDefault();
         }
     }
 }
