@@ -24,6 +24,11 @@ namespace PersistentMapClient {
             }
         }
 
+        public void LogTrace(string message) {
+            string now = DateTime.UtcNow.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+            LogStream.WriteLine($"{now} [TRACE] - {message}");
+        }
+
         public void Log(string message) {
             string now = DateTime.UtcNow.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
             LogStream.WriteLine($"{now} - {message}");

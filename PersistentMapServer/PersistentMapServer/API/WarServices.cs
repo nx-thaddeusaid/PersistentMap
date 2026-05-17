@@ -55,8 +55,8 @@ namespace PersistentMapAPI {
                     int realPlanets = Math.Min(Helper.LoadSettings().MaxPlanetSupport, mresult.planetSupport);
                     int realRep = Math.Min(Helper.LoadSettings().MaxRep, mresult.awardedRep);
                     if ((Helper.LoadSettings().HalfSkullPercentageForWin * realDifficulty) + realRep + realPlanets > 50) {
-                        logger.Info("Suspicious result reported. See console.log for details.");
-                        logger.Debug($"Suspicous result for IP:({ip})" +
+                        logger.Warn("Suspicious result reported. See debug log for details.");
+                        logger.Debug($"Suspicious result for IP:({ip})" +
                             $" normalized difficulty:({realDifficulty}) planetSupport:({realPlanets}) reptuation:({realRep})" +
                             $" for employer:({mresult.employer}) vs target:({mresult.target}) on system: ({mresult.systemName})" +
                             $" with result:({mresult.result})"
@@ -72,6 +72,10 @@ namespace PersistentMapAPI {
 
                     StarMap builtMap = StarMapStateManager.Build();
                     System system = builtMap.FindSystemByName(mresult.systemName);
+                    if (system == null) {
+                        logger.Warn($"[PostMissionResult] System not found: '{mresult.systemName}' — ignoring result from {companyName}");
+                        return null;
+                    }
 
                     FactionControl oldOwnerControl = system.FindHighestControl();
                     Faction oldOwner = Faction.INVALID_UNSET;
@@ -138,6 +142,10 @@ namespace PersistentMapAPI {
                         }
                     }
                     FactionControl afterBattleOwnerControl = system.FindHighestControl();
+                    if (afterBattleOwnerControl == null) {
+                        logger.Warn($"[PostMissionResult] FindHighestControl returned null for '{mresult.systemName}' after battle — controlList may be empty");
+                        return system;
+                    }
                     Faction newOwner = afterBattleOwnerControl.faction;
                     if (oldOwner != newOwner) {
                         hresult.planetSwitched = true;
@@ -158,24 +166,39 @@ namespace PersistentMapAPI {
 
         // TODO: Test with large # of results
         public override List<HistoryResult> GetMissionResults(string MinutesBack, string MaxResults) {
-            List<HistoryResult> resultList = Holder.resultHistory
-                .Where(i => i.date.Value.AddMinutes(int.Parse(MinutesBack)) > DateTime.UtcNow)
+            if (!int.TryParse(MinutesBack, out int minutesBack)) {
+                logger.Warn($"[GetMissionResults] Invalid MinutesBack value: '{MinutesBack}' — defaulting to 60");
+                minutesBack = 60;
+            }
+            if (!int.TryParse(MaxResults, out int maxResults)) {
+                logger.Warn($"[GetMissionResults] Invalid MaxResults value: '{MaxResults}' — defaulting to 100");
+                maxResults = 100;
+            }
+            return Holder.resultHistory
+                .Where(i => i.date.Value.AddMinutes(minutesBack) > DateTime.UtcNow)
                 .OrderByDescending(x => x.date)
-                .Take(int.Parse(MaxResults))
+                .Take(maxResults)
                 .ToList();
-            return resultList;
         }
 
-        // TODO: Test with large # of 
+        // TODO: Test with large # of
         public override int GetActivePlayers(string MinutesBack) {
+            if (!int.TryParse(MinutesBack, out int minutesBack)) {
+                logger.Warn($"[GetActivePlayers] Invalid MinutesBack value: '{MinutesBack}' — defaulting to 60");
+                minutesBack = 60;
+            }
             return Holder.connectionStore
-                .Where(x => x.Value.LastDataSend.AddMinutes(int.Parse(MinutesBack)) > DateTime.UtcNow)
+                .Where(x => x.Value.LastDataSend.AddMinutes(minutesBack) > DateTime.UtcNow)
                 .Count();
         }
 
         public override Dictionary<string, int> GetActiveFactions(string MinutesBack) {
+            if (!int.TryParse(MinutesBack, out int minutesBack)) {
+                logger.Warn($"[GetActiveFactions] Invalid MinutesBack value: '{MinutesBack}' — defaulting to 60");
+                minutesBack = 60;
+            }
             var connections = Holder.connectionStore
-                 .Where(x => x.Value.LastDataSend.AddMinutes(int.Parse(MinutesBack)) > DateTime.UtcNow);
+                 .Where(x => x.Value.LastDataSend.AddMinutes(minutesBack) > DateTime.UtcNow);
             var FactionList = new Dictionary<string, int>();
             foreach (KeyValuePair<string, UserInfo> pair in connections) {
                 var lastFaction = pair.Value.lastFactionFoughtForInWar.ToString();
@@ -188,13 +211,17 @@ namespace PersistentMapAPI {
         }
 
         public override List<string> GetActiveCompaniesPerFaction(string Faction, string MinutesBack) {
+            if (!int.TryParse(MinutesBack, out int minutesBack)) {
+                logger.Warn($"[GetActiveCompaniesPerFaction] Invalid MinutesBack value: '{MinutesBack}' — defaulting to 60");
+                minutesBack = 60;
+            }
             var connections = Holder.connectionStore
-                 .Where(x => x.Value.LastDataSend.AddMinutes(int.Parse(MinutesBack)) > DateTime.UtcNow);
+                 .Where(x => x.Value.LastDataSend.AddMinutes(minutesBack) > DateTime.UtcNow);
             var CompanyList = new List<string>();
             foreach (KeyValuePair<string, UserInfo> pair in connections) {
                 if (pair.Value.lastFactionFoughtForInWar.ToString().ToLower().Equals(Faction.ToLower())) {
                     CompanyList.Add(pair.Value.companyName);
-                        }
+                }
             }
             return CompanyList;
         }

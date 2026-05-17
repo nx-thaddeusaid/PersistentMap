@@ -21,10 +21,11 @@ namespace PersistentMapClient {
         // Pulls the inventory for the specified faction
         public static List<ShopDefItem> GetShopForFaction(Faction faction) {
             try {
-
                 HttpWebRequest request = new RequestBuilder(WarService.GetFactionShop).Faction(faction).Build();
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 HttpWebResponse response = request.GetResponse() as HttpWebResponse;
-
+                watch.Stop();
+                PersistentMapClient.Logger.LogTrace($"GetShopForFaction({faction}) took: {watch.ElapsedMilliseconds}ms.");
                 List<ShopDefItem> items;
                 using (Stream responseStream = response.GetResponseStream()) {
                     StreamReader reader = new StreamReader(responseStream);
@@ -41,65 +42,83 @@ namespace PersistentMapClient {
 
         // Send any salvage the user didn't want to the faction inventory
         public static bool PostUnusedSalvage(List<SalvageDef> ___finalPotentialSalvage, Faction faction) {
-            List<ShopDefItem> items = new List<ShopDefItem>();
-            foreach (SalvageDef salvage in ___finalPotentialSalvage) {
-                ShopDefItem item = new ShopDefItem();
-                item.ID = salvage.Description.Id;
-                switch (salvage.ComponentType) {
-                    case ComponentType.AmmunitionBox: {
-                            item.Type = ShopItemType.AmmunitionBox;
-                            break;
-                        }
-                    case ComponentType.HeatSink: {
-                            item.Type = ShopItemType.HeatSink;
-                            break;
-                        }
-                    case ComponentType.JumpJet: {
-                            item.Type = ShopItemType.JumpJet;
-                            break;
-                        }
-                    case ComponentType.MechPart: {
-                            item.Type = ShopItemType.MechPart;
-                            break;
-                        }
-                    case ComponentType.Upgrade: {
-                            item.Type = ShopItemType.Upgrade;
-                            break;
-                        }
-                    case ComponentType.Weapon: {
-                            item.Type = ShopItemType.Weapon;
-                            break;
-                        }
+            try {
+                List<ShopDefItem> items = new List<ShopDefItem>();
+                foreach (SalvageDef salvage in ___finalPotentialSalvage) {
+                    ShopDefItem item = new ShopDefItem();
+                    item.ID = salvage.Description.Id;
+                    switch (salvage.ComponentType) {
+                        case ComponentType.AmmunitionBox: {
+                                item.Type = ShopItemType.AmmunitionBox;
+                                break;
+                            }
+                        case ComponentType.HeatSink: {
+                                item.Type = ShopItemType.HeatSink;
+                                break;
+                            }
+                        case ComponentType.JumpJet: {
+                                item.Type = ShopItemType.JumpJet;
+                                break;
+                            }
+                        case ComponentType.MechPart: {
+                                item.Type = ShopItemType.MechPart;
+                                break;
+                            }
+                        case ComponentType.Upgrade: {
+                                item.Type = ShopItemType.Upgrade;
+                                break;
+                            }
+                        case ComponentType.Weapon: {
+                                item.Type = ShopItemType.Weapon;
+                                break;
+                            }
+                    }
+                    item.DiscountModifier = 1f;
+                    item.Count = 1;
+                    items.Add(item);
                 }
-                item.DiscountModifier = 1f;
-                item.Count = 1;
-                items.Add(item);
-            }
-            if (items.Count > 0) {
-                string testjson = JsonConvert.SerializeObject(items);
-                HttpWebRequest request = new RequestBuilder(WarService.PostSalvage).Faction(faction).PostData(testjson).Build();
-                HttpWebResponse response = request.GetResponse() as HttpWebResponse;
-                using (Stream responseStream = response.GetResponseStream()) {
-                    StreamReader reader = new StreamReader(responseStream);
-                    string mapstring = reader.ReadToEnd();
+                if (items.Count > 0) {
+                    string testjson = JsonConvert.SerializeObject(items);
+                    HttpWebRequest request = new RequestBuilder(WarService.PostSalvage).Faction(faction).PostData(testjson).Build();
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    HttpWebResponse response = request.GetResponse() as HttpWebResponse;
+                    watch.Stop();
+                    PersistentMapClient.Logger.LogTrace($"PostUnusedSalvage({faction}, {items.Count} items) took: {watch.ElapsedMilliseconds}ms.");
+                    using (Stream responseStream = response.GetResponseStream()) {
+                        StreamReader reader = new StreamReader(responseStream);
+                        string mapstring = reader.ReadToEnd();
+                    }
                 }
+                return true;
             }
-            return true;
+            catch (Exception e) {
+                PersistentMapClient.Logger.LogError(e);
+                return false;
+            }
         }
 
         // Anything the user sells goes into faction inventory as well.
         public static bool PostSoldItems(List<ShopDefItem> items, Faction faction) {
-            foreach (ShopDefItem item in items) {
-                item.DiscountModifier = 1f;
-                item.Count = 1;
+            try {
+                foreach (ShopDefItem item in items) {
+                    item.DiscountModifier = 1f;
+                    item.Count = 1;
+                }
+                string testjson = JsonConvert.SerializeObject(items);
+                HttpWebRequest request = new RequestBuilder(WarService.PostSalvage).Faction(faction).PostData(testjson).Build();
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                HttpWebResponse response = request.GetResponse() as HttpWebResponse;
+                watch.Stop();
+                PersistentMapClient.Logger.LogTrace($"PostSoldItems({faction}, {items.Count} items) took: {watch.ElapsedMilliseconds}ms.");
+                using (Stream responseStream = response.GetResponseStream()) {
+                    StreamReader reader = new StreamReader(responseStream);
+                    string mapstring = reader.ReadToEnd();
+                    return true;
+                }
             }
-            string testjson = JsonConvert.SerializeObject(items);
-            HttpWebRequest request = new RequestBuilder(WarService.PostSalvage).Faction(faction).PostData(testjson).Build();
-            HttpWebResponse response = request.GetResponse() as HttpWebResponse;
-            using (Stream responseStream = response.GetResponseStream()) {
-                StreamReader reader = new StreamReader(responseStream);
-                string mapstring = reader.ReadToEnd();
-                return true;
+            catch (Exception e) {
+                PersistentMapClient.Logger.LogError(e);
+                return false;
             }
         }
 
@@ -108,7 +127,10 @@ namespace PersistentMapClient {
             try {
                 string testjson = JsonConvert.SerializeObject(ids);
                 HttpWebRequest request = new RequestBuilder(WarService.PostBuyItems).Faction(owner).PostData(testjson).Build();
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 HttpWebResponse response = request.GetResponse() as HttpWebResponse;
+                watch.Stop();
+                PersistentMapClient.Logger.LogTrace($"PostBuyItems({owner}, {ids.Count} items) took: {watch.ElapsedMilliseconds}ms.");
                 using (Stream responseStream = response.GetResponseStream()) {
                     StreamReader reader = new StreamReader(responseStream);
                     string mapstring = reader.ReadToEnd();
